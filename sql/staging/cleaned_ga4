@@ -1,0 +1,27 @@
+CREATE OR REPLACE TABLE ANALYTICS_PORTFOLIO.STAGING.CLEANED_GA4 AS
+
+SELECT
+    date,
+    'https://www.thekitchn.com' || landing_page AS url,
+    CASE
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%sailthru%' THEN 'Email'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%google%' THEN 'Organic'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%bing%' THEN 'Organic'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%flipboard%' THEN 'Social'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%facebook%' THEN 'Social'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%instagram%' THEN 'Social'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%threads%' THEN 'Social'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%pinterest%' THEN 'Social'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%msn%' THEN 'Referral'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%smartnews%' THEN 'Referral'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%yahoo%' THEN 'Referral'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%aol%' THEN 'Referral'
+        WHEN SESSION_SOURCE_MEDIUM ILIKE '%apple%' THEN 'Referral'
+
+    ELSE 'Other'
+    END AS Source,
+
+    SESSIONS,
+    PAGEVIEWS
+
+FROM ANALYTICS_PORTFOLIO.RAW.GA4_SESSIONS
