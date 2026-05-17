@@ -1,0 +1,88 @@
+CREATE OR REPLACE TABLE ANALYTICS_PORTFOLIO.MARTS.MART_CONTENT_PERFORMANCE AS
+
+WITH ga4 AS (
+    SELECT
+        DATE,
+        URL,
+        LOWER(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(TRIM(URL), '^https?://(www\.)?', ''),
+                '/$', ''
+            )
+        ) AS CLEAN_URL,
+        TRY_TO_NUMBER(REPLACE(SESSIONS, ',', '')) AS SESSIONS,
+        TRY_TO_NUMBER(REPLACE(PAGEVIEWS, ',', '')) AS PAGEVIEWS
+    FROM ANALYTICS_PORTFOLIO.STAGING.CLEANED_GA4
+),
+
+trackonomics AS (
+    SELECT
+        DATE,
+        PAGE,
+        LOWER(
+            REGEXP_REPLACE(
+                REGEXP_REPLACE(TRIM(PAGE), '^https?://(www\.)?', ''),
+                '/$', ''
+            )
+        ) AS CLEAN_URL,
+        COMMISSIONS,
+        SALES,
+        NUMBER_OF_ORDERS
+    FROM ANALYTICS_PORTFOLIO.STAGING.COMMISSIONS
+),
+
+ga4_clean AS (
+    SELECT
+        DATE,
+        CLEAN_URL,
+        SUM(SESSIONS) AS SESSIONS,
+        SUM(PAGEVIEWS) AS PAGEVIEWS
+    FROM ga4
+    GROUP BY
+        DATE,
+        CLEAN_URL
+),
+
+trackonomics_clean AS (
+    SELECT
+        DATE,
+        CLEAN_URL,
+        SUM(COMMISSIONS) AS COMMISSIONS,
+        SUM(SALES) AS SALES,
+        SUM(NUMBER_OF_ORDERS) AS NUMBER_OF_ORDERS
+    FROM trackonomics
+    GROUP BY
+        DATE,
+        CLEAN_URL
+)
+
+SELECT
+    COALESCE(g.DATE, t.DATE) AS DATE,
+    COALESCE(g.CLEAN_URL, t.CLEAN_URL) AS CLEAN_URL,
+
+    COALESCE(g.SESSIONS, 0) AS SESSIONS,
+    COALESCE(g.PAGEVIEWS, 0) AS PAGEVIEWS,
+
+    COALESCE(t.COMMISSIONS, 0) AS COMMISSIONS,
+    COALESCE(t.SALES, 0) AS SALES,
+    COALESCE(t.NUMBER_OF_ORDERS, 0) AS NUMBER_OF_ORDERS,
+
+    CASE 
+        WHEN COALESCE(g.PAGEVIEWS, 0) = 0 THEN 0
+        ELSE ROUND((COALESCE(t.COMMISSIONS, 0) / g.PAGEVIEWS) * 1000, 2)
+    END AS RPM,
+
+    CASE 
+        WHEN COALESCE(t.SALES, 0) = 0 THEN 0
+        ELSE ROUND(COALESCE(t.COMMISSIONS, 0) / t.SALES, 4)
+    END AS COMMISSION_RATE,
+
+    CASE 
+        WHEN COALESCE(g.SESSIONS, 0) = 0 THEN 0
+        ELSE ROUND(COALESCE(t.NUMBER_OF_ORDERS, 0) / g.SESSIONS, 4)
+    END AS ORDERS_PER_SESSION
+
+FROM ga4_clean g
+FULL OUTER JOIN trackonomics_clean t
+    ON g.DATE = t.DATE
+    AND g.CLEAN_URL = t.CLEAN_URL;
